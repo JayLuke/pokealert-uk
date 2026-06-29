@@ -18,22 +18,10 @@
     "price": "£34.99"
   },
   {
-    "name": "Prismatic Evolutions ETB — Forbidden Planet",
-    "retailer": "Forbidden Planet",
-    "url": "https://forbiddenplanet.com/441225-pokemon-trading-card-game-scarlet-violet-85-prismatic-evolutions-elite-trainer-box/",
+    "name": "Mega Evolution Pitch Black ETB — Smyths",
+    "retailer": "Smyths Toys",
+    "url": "https://www.smythstoys.com/uk/en-gb/toys/action-figures-and-playsets/pokemon/pokemon-trading-card-game/pokemon-trading-card-game-tcg-mega-evolution-pitch-black-elite-trainer-box/p/262470",
     "price": "£44.99"
-  },
-  {
-    "name": "Prismatic Evolutions Surprise Box — Forbidden Planet",
-    "retailer": "Forbidden Planet",
-    "url": "https://forbiddenplanet.com/444225-pokemon-scarlet-violet-prismatic-evolution-surprise-box-1-pcs/",
-    "price": "£19.99"
-  },
-  {
-    "name": "Prismatic Evolutions Super Premium Collection — Forbidden Planet",
-    "retailer": "Forbidden Planet",
-    "url": "https://forbiddenplanet.com/454516-pokemon-scarlet-violet-prismatic-evolutions-super-premium-collection-1-pcs/",
-    "price": "£79.99"
   },
   {
     "name": "Destined Rivals ETB — Magic Madhouse",
@@ -42,57 +30,9 @@
     "price": "£44.99"
   },
   {
-    "name": "Destined Rivals Booster Box — Magic Madhouse",
-    "retailer": "Magic Madhouse",
-    "url": "https://magicmadhouse.co.uk/pokemon-scarlet-and-violet-destined-rivals-booster-box",
-    "price": "£99.99"
-  },
-  {
-    "name": "Destined Rivals ETB — John Lewis",
-    "retailer": "John Lewis",
-    "url": "https://www.johnlewis.com/pokemon-scarlet-violet-destined-rivals-elite-trainer-box-trading-card-game-expansion/p113617161",
-    "price": "£44.99"
-  },
-  {
-    "name": "Destined Rivals Booster Box — John Lewis",
-    "retailer": "John Lewis",
-    "url": "https://www.johnlewis.com/pokemon-tcg-scarlet-violet-destined-rivals-expansion-pack/p115305441",
-    "price": "£99.99"
-  },
-  {
-    "name": "Destined Rivals Booster Box — Argos",
-    "retailer": "Argos",
-    "url": "https://www.argos.co.uk/product/8488909",
-    "price": "£155.00"
-  },
-  {
     "name": "Destined Rivals PC ETB — Pokemon Center UK",
     "retailer": "Pokemon Center UK",
     "url": "https://www.pokemoncenter.com/en-gb/product/100-10653/pokemon-tcg-scarlet-and-violet-destined-rivals-pokemon-center-elite-trainer-box",
     "price": "£49.99"
-  },
-  {
-    "name": "Mega Evolution Perfect Order ETB — Forbidden Planet",
-    "retailer": "Forbidden Planet",
-    "url": "https://forbiddenplanet.com/484452-pokemon-mega-evolution-perfect-order-elite-trainer-box-1-pcs/",
-    "price": "£44.99"
-  },
-  {
-    "name": "Mega Evolution Perfect Order Booster Bundle — Forbidden Planet",
-    "retailer": "Forbidden Planet",
-    "url": "https://forbiddenplanet.com/484451-pokemon-mega-evolution-perfect-order-booster-bundle-1-pcs/",
-    "price": "£19.99"
-  },
-  {
-    "name": "Mega Evolution Perfect Order ETB — Argos",
-    "retailer": "Argos",
-    "url": "https://www.argos.co.uk/product/8028493",
-    "price": "£44.99"
-  },
-  {
-    "name": "Mega Evolution Pitch Black ETB — Smyths",
-    "retailer": "Smyths Toys",
-    "url": "https://www.smythstoys.com/uk/en-gb/toys/action-figures-and-playsets/pokemon/pokemon-trading-card-game/pokemon-trading-card-game-tcg-mega-evolution-pitch-black-elite-trainer-box/p/262470",
-    "price": "£44.99"
   }
 ]
