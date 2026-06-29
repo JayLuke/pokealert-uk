@@ -17,7 +17,7 @@ WEBHOOK_URL    = os.environ.get("DISCORD_WEBHOOK", "")
 PRODUCTS_FILE  = "products.json"
 STATE_FILE     = "state.json"
 TIMEOUT        = 20
-DELAY          = (2.5, 5.0)   # polite delay between requests (seconds)
+DELAY          = (2.5, 5.0)
 
 HEADERS = {
     "User-Agent": (
@@ -44,7 +44,37 @@ IN_PHRASES = [
     "buy now", "order now", "in stock",
 ]
 
-# ── Retailer-specific checkers ────────────────────────────────────────────────
+# ── Structured data (schema.org) ──────────────────────────────────────────────
+
+def check_structured_data(soup):
+    """
+    Parse JSON-LD schema.org markup for availability.
+    Most major UK retailers (Smyths, GAME, Very, Tesco etc.) include this —
+    it's the most reliable method since it's not affected by JS rendering.
+    """
+    for script in soup.find_all("script", type="application/ld+json"):
+        if not script.string:
+            continue
+        try:
+            data = json.loads(script.string)
+            items = data if isinstance(data, list) else [data]
+            for item in items:
+                offers = item.get("offers", {})
+                if isinstance(offers, list):
+                    offers = offers[0] if offers else {}
+                avail = offers.get("availability", "")
+                if not avail:
+                    continue
+                label = avail.split("/")[-1]   # e.g. "InStock" from full URL
+                if any(x in avail for x in ("InStock", "LimitedAvailability", "PreOrder")):
+                    return True, f"In stock (schema.org: {label})"
+                if any(x in avail for x in ("OutOfStock", "Discontinued", "SoldOut")):
+                    return False, f"Out of stock (schema.org: {label})"
+        except Exception:
+            pass
+    return None, None
+
+# ── Generic text fallback ─────────────────────────────────────────────────────
 
 def _generic(soup):
     text = soup.get_text(" ", strip=True).lower()
@@ -54,8 +84,9 @@ def _generic(soup):
     for p in IN_PHRASES:
         if p in text:
             return True, f"In stock ('{p}')"
-    return None, "Status unclear"
+    return None, "Status unclear — page may use JS rendering"
 
+# ── Retailer-specific checkers (used as fallback after structured data) ────────
 
 def _check_smyths(soup):
     btn = soup.find("button", class_=lambda c: c and any(
@@ -67,59 +98,40 @@ def _check_smyths(soup):
     return _generic(soup)
 
 
-def _check_game(soup):
-    btn = soup.find("button", attrs={"data-action": lambda v: v and "add-to-cart" in v.lower()})
-    if btn:
-        return (False, "Out of stock") if btn.get("disabled") else (True, "In stock")
-    return _generic(soup)
-
-
-def _check_argos(soup):
-    oos = soup.find(string=lambda t: t and "out of stock" in t.lower())
-    if oos:
+def _check_magic_madhouse(soup):
+    # Magic Madhouse shows clear OOS/in-stock text in the page
+    text = soup.get_text(" ", strip=True).lower()
+    if "out of stock" in text or "sold out" in text:
         return False, "Out of stock"
-    atb = soup.find(string=lambda t: t and "add to trolley" in t.lower())
-    if atb:
+    if "add to cart" in text or "add to basket" in text or "buy now" in text:
         return True, "In stock"
-    return _generic(soup)
-
-
-def _check_fp(soup):
-    el = soup.find(class_=lambda c: c and "out-of-stock" in " ".join(c or []).lower())
-    if el:
-        return False, "Out of stock"
-    btn = soup.find("button", class_=lambda c: c and "add-to-cart" in " ".join(c or []).lower())
-    if btn and not btn.get("disabled"):
-        return True, "In stock"
-    return _generic(soup)
-
-
-def _check_zatu(soup):
-    badge = soup.find(class_=lambda c: c and "stock" in " ".join(c or []).lower())
-    if badge:
-        t = badge.get_text(strip=True).lower()
-        if any(p in t for p in ("out of stock", "sold out", "pre-order")):
-            return False, f"Out of stock ({t[:40]})"
-        if any(p in t for p in ("in stock", "available")):
-            return True, f"In stock ({t[:40]})"
+    # Check for invitation/lottery system
+    if "invitation to purchase" in text or "sign up" in text:
+        return False, "Out of stock (invitation/lottery only)"
     return _generic(soup)
 
 
 RETAILER_MAP = {
-    "smythstoys.com":      _check_smyths,
-    "game.co.uk":          _check_game,
-    "argos.co.uk":         _check_argos,
-    "forbiddenplanet.com": _check_fp,
-    "zatugames.co.uk":     _check_zatu,
-    # magicmadhouse, 365games, very — generic works fine
+    "smythstoys.com":     _check_smyths,
+    "magicmadhouse.co.uk": _check_magic_madhouse,
 }
 
+# ── Main stock detection ───────────────────────────────────────────────────────
 
 def detect_stock(url, html):
     soup = BeautifulSoup(html, "lxml")
+
+    # 1. Try structured data first — most reliable, not affected by JS
+    in_stock, reason = check_structured_data(soup)
+    if in_stock is not None:
+        return in_stock, reason
+
+    # 2. Retailer-specific checker
     for domain, fn in RETAILER_MAP.items():
         if domain in url.lower():
             return fn(soup)
+
+    # 3. Generic text scan
     return _generic(soup)
 
 # ── HTTP ──────────────────────────────────────────────────────────────────────
@@ -172,7 +184,6 @@ def send_restock(product, reason):
 
 
 def send_summary(results):
-    """Post a check summary — only runs when DISCORD_SEND_SUMMARY=1."""
     if not os.environ.get("DISCORD_SEND_SUMMARY"):
         return
     icon = {True: "✅", False: "❌", None: "❓"}
@@ -212,7 +223,7 @@ def main():
         sys.exit(0)
 
     state     = load_json(STATE_FILE, {})
-    is_first  = not bool(state)   # Don't alert on very first run (establish baseline)
+    is_first  = not bool(state)
     new_state = {}
     results   = []
 
@@ -228,12 +239,10 @@ def main():
 
         print(f"[Check] {name}")
         html, err = fetch(url)
-
         now = datetime.now(timezone.utc).isoformat()
 
         if err:
             print(f"  ✗ {err}")
-            # Keep previous known state on error — don't flip to unknown
             new_state[name] = {**state.get(name, {"in_stock": None}), "last_checked": now, "error": err}
             results.append({"name": name, "in_stock": None, "reason": err})
             time.sleep(random.uniform(*DELAY))
@@ -243,10 +252,8 @@ def main():
         print(f"  → {reason}")
 
         prev_in_stock = state.get(name, {}).get("in_stock")
-
         new_state[name] = {"in_stock": in_stock, "reason": reason, "last_checked": now, "error": None}
 
-        # Fire alert only on OOS→InStock transition, and not on first run
         if in_stock is True and prev_in_stock is not True and not is_first:
             print(f"  🚨 RESTOCK!")
             send_restock(product, reason)
