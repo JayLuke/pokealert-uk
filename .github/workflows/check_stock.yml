@@ -34,8 +34,7 @@ jobs:
       - name: Run stock checker
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-          # Uncomment the line below to also post a summary of every check:
-          # DISCORD_SEND_SUMMARY: "1"
+          DEBUG: "1"
         run: python scraper.py
 
       - name: Commit updated state
