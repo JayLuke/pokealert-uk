@@ -90,6 +90,12 @@ IN_PHRASES = [
 
 def _generic(soup):
     text = soup.get_text(" ", strip=True).lower()
+
+    if os.environ.get("DEBUG"):
+        title = soup.find("title")
+        print(f"  [DEBUG] Title: {title.get_text(strip=True) if title else 'none'}")
+        print(f"  [DEBUG] Text sample: {text[:600]!r}")
+
     for p in OOS_PHRASES:
         if p in text:
             return False, f"Out of stock ('{p}')"
