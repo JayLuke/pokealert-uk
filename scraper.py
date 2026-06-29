@@ -9,129 +9,18 @@ import json, os, sys, time, random
 from datetime import datetime, timezone
 
 import cloudscraper
-import requests
 from bs4 import BeautifulSoup
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-WEBHOOK_URL    = os.environ.get("DISCORD_WEBHOOK", "")
-PRODUCTS_FILE  = "products.json"
-STATE_FILE     = "state.json"
-TIMEOUT        = 20
-DELAY          = (2.5, 5.0)
+WEBHOOK_URL   = os.environ.get("DISCORD_WEBHOOK", "")
+PRODUCTS_FILE = "products.json"
+STATE_FILE    = "state.json"
+TIMEOUT       = 20
+DELAY         = (2.5, 5.0)
 
-HEADERS = {
-    "User-Agent": (
-    ...
-    "DNT":             "1",
-}
+# ── HTTP (cloudscraper handles Cloudflare JS challenges) ──────────────────────
 
-# ── Text signals (generic fallback) ───────────────────────────────────────────
-
-OOS_PHRASES = [
-    "out of stock", "sold out", "unavailable", "currently unavailable",
-    "not available", "no longer available", "temporarily unavailable",
-    "notify me when available", "notify me when in stock",
-    "join waitlist", "pre-order only",
-]
-IN_PHRASES = [
-    "add to trolley", "add to basket", "add to cart", "add to bag",
-    "buy now", "order now", "in stock",
-]
-
-# ── Structured data (schema.org) ──────────────────────────────────────────────
-
-def check_structured_data(soup):
-    """
-    Parse JSON-LD schema.org markup for availability.
-    Most major UK retailers (Smyths, GAME, Very, Tesco etc.) include this —
-    it's the most reliable method since it's not affected by JS rendering.
-    """
-    for script in soup.find_all("script", type="application/ld+json"):
-        if not script.string:
-            continue
-        try:
-            data = json.loads(script.string)
-            items = data if isinstance(data, list) else [data]
-            for item in items:
-                offers = item.get("offers", {})
-                if isinstance(offers, list):
-                    offers = offers[0] if offers else {}
-                avail = offers.get("availability", "")
-                if not avail:
-                    continue
-                label = avail.split("/")[-1]   # e.g. "InStock" from full URL
-                if any(x in avail for x in ("InStock", "LimitedAvailability", "PreOrder")):
-                    return True, f"In stock (schema.org: {label})"
-                if any(x in avail for x in ("OutOfStock", "Discontinued", "SoldOut")):
-                    return False, f"Out of stock (schema.org: {label})"
-        except Exception:
-            pass
-    return None, None
-
-# ── Generic text fallback ─────────────────────────────────────────────────────
-
-def _generic(soup):
-    text = soup.get_text(" ", strip=True).lower()
-    for p in OOS_PHRASES:
-        if p in text:
-            return False, f"Out of stock ('{p}')"
-    for p in IN_PHRASES:
-        if p in text:
-            return True, f"In stock ('{p}')"
-    return None, "Status unclear — page may use JS rendering"
-
-# ── Retailer-specific checkers (used as fallback after structured data) ────────
-
-def _check_smyths(soup):
-    btn = soup.find("button", class_=lambda c: c and any(
-        x in " ".join(c).lower() for x in ("addtocart", "add-to-cart", "add-to-trolley")))
-    if btn:
-        if btn.get("disabled") or "disabled" in " ".join(btn.get("class", [])).lower():
-            return False, "Out of stock (button disabled)"
-        return True, "In stock — Add to Trolley available"
-    return _generic(soup)
-
-
-def _check_magic_madhouse(soup):
-    # Magic Madhouse shows clear OOS/in-stock text in the page
-    text = soup.get_text(" ", strip=True).lower()
-    if "out of stock" in text or "sold out" in text:
-        return False, "Out of stock"
-    if "add to cart" in text or "add to basket" in text or "buy now" in text:
-        return True, "In stock"
-    # Check for invitation/lottery system
-    if "invitation to purchase" in text or "sign up" in text:
-        return False, "Out of stock (invitation/lottery only)"
-    return _generic(soup)
-
-
-RETAILER_MAP = {
-    "smythstoys.com":     _check_smyths,
-    "magicmadhouse.co.uk": _check_magic_madhouse,
-}
-
-# ── Main stock detection ───────────────────────────────────────────────────────
-
-def detect_stock(url, html):
-    soup = BeautifulSoup(html, "lxml")
-
-    # 1. Try structured data first — most reliable, not affected by JS
-    in_stock, reason = check_structured_data(soup)
-    if in_stock is not None:
-        return in_stock, reason
-
-    # 2. Retailer-specific checker
-    for domain, fn in RETAILER_MAP.items():
-        if domain in url.lower():
-            return fn(soup)
-
-    # 3. Generic text scan
-    return _generic(soup)
-
-# ── HTTP ──────────────────────────────────────────────────────────────────────
-
-# cloudscraper mimics a real browser to bypass Cloudflare JS challenges
 _scraper = cloudscraper.create_scraper(
     browser={"browser": "chrome", "platform": "windows", "mobile": False}
 )
@@ -152,10 +41,100 @@ def fetch(url):
         if r.status_code != 200:
             return None, f"HTTP {r.status_code}"
         if is_cf_challenge(r.text):
-            return None, "Blocked by Cloudflare (JS challenge — home IP required)"
+            return None, "Blocked by Cloudflare (JS challenge)"
         return r.text, None
     except Exception as e:
         return None, str(e)
+
+# ── Structured data (schema.org) ──────────────────────────────────────────────
+
+def check_structured_data(soup):
+    """
+    Parse JSON-LD schema.org markup for availability.
+    Most major UK retailers include this — most reliable method.
+    """
+    for script in soup.find_all("script", type="application/ld+json"):
+        if not script.string:
+            continue
+        try:
+            data = json.loads(script.string)
+            items = data if isinstance(data, list) else [data]
+            for item in items:
+                offers = item.get("offers", {})
+                if isinstance(offers, list):
+                    offers = offers[0] if offers else {}
+                avail = offers.get("availability", "")
+                if not avail:
+                    continue
+                label = avail.split("/")[-1]
+                if any(x in avail for x in ("InStock", "LimitedAvailability", "PreOrder")):
+                    return True, f"In stock (schema.org: {label})"
+                if any(x in avail for x in ("OutOfStock", "Discontinued", "SoldOut")):
+                    return False, f"Out of stock (schema.org: {label})"
+        except Exception:
+            pass
+    return None, None
+
+# ── Generic text fallback ─────────────────────────────────────────────────────
+
+OOS_PHRASES = [
+    "out of stock", "sold out", "unavailable", "currently unavailable",
+    "not available", "no longer available", "temporarily unavailable",
+    "notify me when available", "notify me when in stock",
+    "join waitlist", "pre-order only",
+]
+IN_PHRASES = [
+    "add to trolley", "add to basket", "add to cart", "add to bag",
+    "buy now", "order now", "in stock",
+]
+
+def _generic(soup):
+    text = soup.get_text(" ", strip=True).lower()
+    for p in OOS_PHRASES:
+        if p in text:
+            return False, f"Out of stock ('{p}')"
+    for p in IN_PHRASES:
+        if p in text:
+            return True, f"In stock ('{p}')"
+    return None, "Status unclear — page may use JS rendering"
+
+# ── Retailer-specific checkers ────────────────────────────────────────────────
+
+def _check_smyths(soup):
+    btn = soup.find("button", class_=lambda c: c and any(
+        x in " ".join(c).lower() for x in ("addtocart", "add-to-cart", "add-to-trolley")))
+    if btn:
+        if btn.get("disabled") or "disabled" in " ".join(btn.get("class", [])).lower():
+            return False, "Out of stock (button disabled)"
+        return True, "In stock — Add to Trolley available"
+    return _generic(soup)
+
+def _check_magic_madhouse(soup):
+    text = soup.get_text(" ", strip=True).lower()
+    if "out of stock" in text or "sold out" in text:
+        return False, "Out of stock"
+    if "invitation to purchase" in text or "sign up" in text:
+        return False, "Out of stock (invitation/lottery only)"
+    if "add to cart" in text or "add to basket" in text or "buy now" in text:
+        return True, "In stock"
+    return _generic(soup)
+
+RETAILER_MAP = {
+    "smythstoys.com":      _check_smyths,
+    "magicmadhouse.co.uk": _check_magic_madhouse,
+}
+
+# ── Main stock detection ───────────────────────────────────────────────────────
+
+def detect_stock(url, html):
+    soup = BeautifulSoup(html, "lxml")
+    in_stock, reason = check_structured_data(soup)
+    if in_stock is not None:
+        return in_stock, reason
+    for domain, fn in RETAILER_MAP.items():
+        if domain in url.lower():
+            return fn(soup)
+    return _generic(soup)
 
 # ── Discord ───────────────────────────────────────────────────────────────────
 
@@ -164,15 +143,14 @@ def _post(payload):
         print("[Discord] No webhook URL — skipping.")
         return
     try:
-        requests.post(WEBHOOK_URL, json=payload, timeout=10).raise_for_status()
+        import requests as req
+        req.post(WEBHOOK_URL, json=payload, timeout=10).raise_for_status()
     except Exception as e:
         print(f"[Discord] Error: {e}")
-
 
 def send_restock(product, reason):
     name, retailer = product["name"], product.get("retailer", "Unknown")
     price, url     = product.get("price", ""), product["url"]
-
     fields = [
         {"name": "🏪 Retailer", "value": retailer, "inline": True},
         {"name": "📦 Status",   "value": reason,   "inline": True},
@@ -180,7 +158,6 @@ def send_restock(product, reason):
     if price:
         fields.append({"name": "💰 Price", "value": price, "inline": True})
     fields.append({"name": "🔗 Link", "value": f"[Buy Now!]({url})", "inline": False})
-
     _post({
         "content": "@everyone 🔴 **RESTOCK ALERT!**",
         "embeds": [{
@@ -193,7 +170,6 @@ def send_restock(product, reason):
         }],
     })
     print(f"[Discord] ✅ Alert sent for: {name}")
-
 
 def send_summary(results):
     if not os.environ.get("DISCORD_SEND_SUMMARY"):
@@ -221,7 +197,6 @@ def load_json(path, default):
             print(f"[Warning] Could not read {path}: {e}")
     return default
 
-
 def save_json(path, data):
     with open(path, "w") as f:
         json.dump(data, f, indent=2)
@@ -234,10 +209,9 @@ def main():
         print("No products in products.json — nothing to do.")
         sys.exit(0)
 
-    state     = load_json(STATE_FILE, {})
-    is_first  = not bool(state)
-    new_state = {}
-    results   = []
+    state    = load_json(STATE_FILE, {})
+    is_first = not bool(state)
+    new_state, results = {}, []
 
     if is_first:
         print("[Info] First run — building baseline. No alerts will fire yet.")
@@ -246,7 +220,7 @@ def main():
         name = product.get("name", "Unnamed")
         url  = product.get("url", "")
         if not url:
-            print(f"[Skip] {name} — no URL configured")
+            print(f"[Skip] {name} — no URL")
             continue
 
         print(f"[Check] {name}")
@@ -276,7 +250,6 @@ def main():
     save_json(STATE_FILE, new_state)
     print(f"\n[Done] Checked {len(results)} product(s).")
     send_summary(results)
-
 
 if __name__ == "__main__":
     main()
