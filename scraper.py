@@ -8,6 +8,7 @@ fires a Discord webhook alert when something restocks.
 import json, os, sys, time, random
 from datetime import datetime, timezone
 
+import cloudscraper
 import requests
 from bs4 import BeautifulSoup
 
@@ -136,13 +137,30 @@ def detect_stock(url, html):
 
 # ── HTTP ──────────────────────────────────────────────────────────────────────
 
+# cloudscraper mimics a real browser to bypass Cloudflare JS challenges
+_scraper = cloudscraper.create_scraper(
+    browser={"browser": "chrome", "platform": "windows", "mobile": False}
+)
+
+CF_SIGNALS = [
+    "cf-browser-verification", "jschl_vc", "cf_clearance",
+    "checking your browser", "enable javascript and cookies",
+    "ddos protection by cloudflare", "cf-spinner",
+]
+
+def is_cf_challenge(html):
+    low = html.lower()
+    return any(s in low for s in CF_SIGNALS)
+
 def fetch(url):
     try:
-        r = requests.get(url, headers=HEADERS, timeout=TIMEOUT, allow_redirects=True)
-        return (r.text, None) if r.status_code == 200 else (None, f"HTTP {r.status_code}")
-    except requests.exceptions.Timeout:
-        return None, "Timeout"
-    except requests.exceptions.RequestException as e:
+        r = _scraper.get(url, timeout=TIMEOUT)
+        if r.status_code != 200:
+            return None, f"HTTP {r.status_code}"
+        if is_cf_challenge(r.text):
+            return None, "Blocked by Cloudflare (JS challenge — home IP required)"
+        return r.text, None
+    except Exception as e:
         return None, str(e)
 
 # ── Discord ───────────────────────────────────────────────────────────────────
