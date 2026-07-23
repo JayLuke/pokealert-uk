@@ -2,31 +2,31 @@
   "Prismatic Evolutions ETB \u2014 Smyths": {
     "in_stock": null,
     "reason": "Status unclear \u2014 page may use JS rendering",
-    "last_checked": "2026-07-23T07:18:06.665547+00:00",
+    "last_checked": "2026-07-23T09:41:46.935429+00:00",
     "error": null
   },
   "Prismatic Evolutions Booster Bundle \u2014 Smyths": {
     "in_stock": null,
     "reason": "Status unclear \u2014 page may use JS rendering",
-    "last_checked": "2026-07-23T07:18:09.394057+00:00",
+    "last_checked": "2026-07-23T09:41:49.575919+00:00",
     "error": null
   },
   "Prismatic Evolutions Premium Figure Collection \u2014 Smyths": {
     "in_stock": null,
     "reason": "Status unclear \u2014 page may use JS rendering",
-    "last_checked": "2026-07-23T07:18:12.117659+00:00",
+    "last_checked": "2026-07-23T09:41:53.909695+00:00",
     "error": null
   },
   "Mega Evolution Pitch Black ETB \u2014 Smyths": {
     "in_stock": null,
     "reason": "Status unclear \u2014 page may use JS rendering",
-    "last_checked": "2026-07-23T07:18:16.839082+00:00",
+    "last_checked": "2026-07-23T09:41:57.363287+00:00",
     "error": null
   },
   "Destined Rivals ETB \u2014 Magic Madhouse": {
-    "in_stock": true,
-    "reason": "In stock (schema.org: InStock)",
-    "last_checked": "2026-07-23T07:18:20.866429+00:00",
+    "in_stock": false,
+    "reason": "Out of stock",
+    "last_checked": "2026-07-23T09:42:01.541751+00:00",
     "error": null
   }
 }
